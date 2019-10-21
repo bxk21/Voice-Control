@@ -5,6 +5,7 @@ const decode = require('./tools/decodeOpus');
 const fs = require('fs-extra');
 const Path = require('path');
 const interpreters = require('./interpreters');
+const ytdl = require("ytdl-core");
 
 var config = JSON.parse(fs.readFileSync("./config.json", "utf-8"));
 
@@ -12,8 +13,8 @@ var config = JSON.parse(fs.readFileSync("./config.json", "utf-8"));
 const WIT_API_KEY = config.wit_api_key;
 /** @type {string} */
 const prefixText = config.prefixText;
-/** @type {Array<string>} */
-const prefixVoice = config.prefixVoice;
+/** @type {Array<Array<string>>} */
+const prefixVoiceList = config.prefixVoiceList;
 /** @type {string} */
 const discord_token = config.discord_token;
 /** @type {string} */
@@ -50,17 +51,27 @@ interpreters.forEach((interpreter)=>{
 });
 
 /**
- * User
+ * User (not often used)
  * @typedef {Object} User
- * @property {string} voiceChannel
  * @property {string} id
+ */
+
+/**
+ * GuildMember (User in a server. Most often used)
+ * @typedef {Object} GuildMember
+ * @property {string} id
+ * @property {string} displayName
+ * @property {VoiceChannel} voiceChannel
+ * @property {string} voiceChannelId
+ * @property {function} kick
+ * @property {function} setVoiceChannel
  */
 
 /**
  * Message
  * @typedef {Object} Message
  * @property {string} content
- * @property {User} user
+ * @property {GuildMember} member
  * @property {string} channel
  * @property {function} reply
  */
@@ -106,19 +117,18 @@ discord.on('disconnect', disconnect.bind(this));
 
 function handleReady() {
 	console.log("Loaded Successfully");
-	console.log("Connected to " + discord.voiceConnections.array().length);
 }
 
 /**
  * @param {Array<string>} params
- * @param {User} user
+ * @param {GuildMember} member
  * @param {Message} [message]
  */
-function interpret(params, user, message) {
+function interpret(params, member, message) {
 	switch (params[0]) {
 		case 'listen':
 		case 'join':
-			commandListen(params.slice(1), user, message);
+			commandListen(params.slice(1), member, message);
 			break;
 		case 'leave':
 		case 'stop':
@@ -127,7 +137,7 @@ function interpret(params, user, message) {
 		default:
 			let interpreted = false;
 			interpreters.some((interpreter)=>{//TODO: maybe do a .forEach() instead
-				if (interpreter.interpret(params, user)){//TODO: maybe send message data
+				if (interpreter.interpret(params, member)){//TODO: maybe send message data
 					interpreted = true;
 				}
 			});
@@ -152,37 +162,42 @@ function handleText(message){
 
 /**
  * Processes and Interprets Speech
- * @param {User} user 
+ * @param {GuildMember} member 
  * @param {string} speech 
  */
-function handleTTS(user, speech) {
-	console.log("Heard:\t" + speech);
+function handleTTS(speech, member) {
+	if (speech.length===0) {
+		// console.log("\tHeard no words");
+		return;
+	}
+	console.log("\tHeard:\t" + speech);
 	var command = speech.toLowerCase().split(' ');
-	if (prefixVoice.every((word, index) => command[index] === word )) {
-		let params = command.slice(prefixVoice.length);
+	if (prefixVoiceList.some((prefix)=>prefix.every((word, index) => command[index] === word ))) {
+		let params = command.slice(prefixVoiceList.length);
 		if (params[0] == 'play' && params[1] == 'list') {
 			params.slice(1)[0] = 'playlist';
 		}
-		interpret(params, user);
+		console.log("Heard Prefix Keyword");
+		interpret(params, member);
 	}
 }
 
 /**
  * 
- * @param {User} user 
- * @param {boolean} speaking 
+ * @param {GuildMember} member
+ * @param {boolean} speaking
  */
-function handleAudio(user, speaking) {
-	console.log("Hearing Sounds");
-	console.log("Connected to " + discord.voiceConnections.array().length);
-	if (speaking || !user.voiceChannel) {// Interpret after they finish speaking
+function handleAudio(member, speaking) {
+	// console.log(speaking + " hearing Sounds from " + member);
+	// console.log("Connected to " + discord.voiceConnections.array().length);
+	if (speaking || !member.voiceChannel) {// Interpret after they finish speaking
 		return;
 	}
-	let stream = vars.listenStreams.get(user.id);
+	let stream = vars.listenStreams.get(member.id);
 	if (!stream) {
 		return;
 	}
-	vars.listenStreams.delete(user.id);
+	vars.listenStreams.delete(member.id);
 	stream.end((err) => {
 		if (err) {
 			console.error(err);
@@ -200,7 +215,7 @@ function handleAudio(user, speaking) {
 					Path.join(recordingsPath, basename + '.wav'),
 					(function (data) {
 						if (data != null) {
-							handleTTS(user, data._text);
+							handleTTS(data._text, member);
 						}
 					}).bind(this))
 			}).bind(this));
@@ -214,6 +229,7 @@ function handleAudio(user, speaking) {
  * @param {Message} [message] 
  */
 function commandListen(params, member, message) {
+	console.log("Listening to " )
 	if (!member) {//TODO: remove? How can there not be a member?
 		return;
 	}
@@ -240,6 +256,8 @@ function commandListen(params, member, message) {
 	vars.voiceChannel.join().then((connection) => {
 		//listenConnection.set(member.voiceChannelId, connection);
 		// vars.listenConnection = connection;
+		const stream = ytdl('https://www.youtube.com/watch?v=XAWgeLF9EVQ', { filter : 'audioonly' });
+		connection.playStream(stream, {volume: 0});
 
 		let receiver = connection.createReceiver();
 		receiver.on('opus', (user, buffer) => {
@@ -260,7 +278,7 @@ function commandListen(params, member, message) {
 	}).catch(console.error);
 
 	
-	console.log("Connected to " + discord.voiceConnections.array().length);
+	console.log("CommandListen: Connected to " + discord.voiceConnections.array().length);
 }
 
 /**
@@ -308,18 +326,22 @@ function processRawToWav(filepath, outputpath, cb) {
 			var stream = fs.createReadStream(outputpath);
 
 			// Its best to return a promise
-			var parseSpeech = new Promise((ressolve, reject) => {
+			var parseSpeech = new Promise((resolve, reject) => {
 				// call the wit.ai api with the created stream
-				WitSpeech.extractSpeechIntent(WIT_API_KEY, stream, content_type,
+				WitSpeech.extractSpeechIntent(
+					WIT_API_KEY,
+					stream,
+					content_type,
 					(err, res) => {
 						if (err) return reject(err);
-						ressolve(res);
-					});
+						resolve(res);
+					}
+				);
 			});
 
 			// check in the promise for the completion of call to witai
 			parseSpeech.then((data) => {
-				console.log("you said: " + data._text);
+				// console.log("you said: " + data._text);
 				cb(data);
 				//return data;
 			})

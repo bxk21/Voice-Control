@@ -135,8 +135,8 @@ function repeat(member, msg) {
 	}
 
 	msg = msg.toLowerCase().split(' ').slice(1).join(" ");
-	voiceChannel = member.voiceChannel;
-	voiceChannel.join().then((connection) => {
+	vars.voiceChannel = member.voiceChannel;
+	vars.voiceChannel.join().then((connection) => {
 		textChannel.send(msg, {
 			tts: true
 		});
