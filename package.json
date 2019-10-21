@@ -33,6 +33,7 @@
 		"underscore": "latest",
 		"request": "latest",
 		"youtube-info": "latest",
-		"ytdl-core": "latest"
+		"ytdl-core": "latest",
+		"words-to-numbers": "latest"
 	}
 }

@@ -1,13 +1,13 @@
-const Discord = require("discord.js");
+const Discord = require('discord.js');
 const ffmpeg = require('fluent-ffmpeg');
 const WitSpeech = require('node-witai-speech');
 const decode = require('./tools/decodeOpus');
 const fs = require('fs-extra');
 const Path = require('path');
 const interpreters = require('./interpreters');
-const ytdl = require("ytdl-core");
+const ytdl = require('ytdl-core');
 
-var config = JSON.parse(fs.readFileSync("./config.json", "utf-8"));
+var config = JSON.parse(fs.readFileSync('./config.json', 'utf-8'));
 
 /** @type {string} */
 const WIT_API_KEY = config.wit_api_key;
@@ -36,7 +36,7 @@ var vars = {
 	skippers: []
 }
 
-const discord = new Discord.Client();
+const client = new Discord.Client();
 const recordingsPath = './recordings';
 try {
 	fs.mkdirSync(recordingsPath);
@@ -44,6 +44,8 @@ try {
 	if (error.code !== 'EEXIST'){
 		throw error
 	}
+} finally {
+	fs.emptyDirSync(recordingsPath);
 }
 
 interpreters.forEach((interpreter)=>{
@@ -102,21 +104,21 @@ interpreters.forEach((interpreter)=>{
  * @property {function(chunk, encoding)} write
  */
 
-discord.login(discord_token).catch((error) => {
-	console.error("Could Not Login to Discord");
+client.login(discord_token).catch((error) => {
+	console.error('Could Not Login to Discord');
 	console.error(error);
 })
 
-discord.on('ready', handleReady.bind(this));
+client.on('ready', handleReady.bind(this));
 
-discord.on('message', handleText.bind(this));
+client.on('message', handleText.bind(this));
 
-discord.on('guildMemberSpeaking', handleAudio.bind(this));
+client.on('guildMemberSpeaking', handleAudio.bind(this));
 
-discord.on('disconnect', disconnect.bind(this));
+client.on('disconnect', disconnect.bind(this));
 
 function handleReady() {
-	console.log("Loaded Successfully");
+	console.log('Loaded Successfully');
 }
 
 /**
@@ -125,6 +127,7 @@ function handleReady() {
  * @param {Message} [message]
  */
 function interpret(params, member, message) {
+	console.log ('interpreting:\t' + params)
 	switch (params[0]) {
 		case 'listen':
 		case 'join':
@@ -135,13 +138,7 @@ function interpret(params, member, message) {
 			disconnect();
 			break;
 		default:
-			let interpreted = false;
-			interpreters.some((interpreter)=>{//TODO: maybe do a .forEach() instead
-				if (interpreter.interpret(params, member)){//TODO: maybe send message data
-					interpreted = true;
-				}
-			});
-			if (!interpreted && message){
+			if (!interpreters.some((interpreter) => interpreter.interpret(params, member)) && message){
 				message.reply(" command not recognized! Type '!help' for a list of commands.");
 			}
 	}
@@ -152,10 +149,10 @@ function interpret(params, member, message) {
  * @param {Message} message 
  */
 function handleText(message){
-	console.log("Message:\t" + message);
 	if (message.content.substring(0, prefixText.length) === prefixText) {
 		vars.textChannel = message.channel;
 		const params = message.content.toLowerCase().slice(prefixText.length).trim().split(' ');//TODO remove redundant trim?
+		console.log('Message:\t' + message);
 		interpret(params, message.member, message);
 	}
 }
@@ -167,17 +164,28 @@ function handleText(message){
  */
 function handleTTS(speech, member) {
 	if (speech.length===0) {
-		// console.log("\tHeard no words");
+		// console.log('\tHeard no words');
 		return;
 	}
-	console.log("\tHeard:\t" + speech);
+	console.log('\tHeard:\t' + speech);
+	vars.textChannel.send('Heard: ' + speech);
 	var command = speech.toLowerCase().split(' ');
-	if (prefixVoiceList.some((prefix)=>prefix.every((word, index) => command[index] === word ))) {
-		let params = command.slice(prefixVoiceList.length);
+	let commandLength = 0;
+	if (prefixVoiceList.some(
+		(prefix)=>prefix.every((word, index) => {
+			if (command[index] === word ){
+				commandLength = prefix.length;
+				return true;
+			} else {
+				return false;
+			}
+		})
+	)) {
+		let params = command.slice(commandLength);
 		if (params[0] == 'play' && params[1] == 'list') {
 			params.slice(1)[0] = 'playlist';
 		}
-		console.log("Heard Prefix Keyword");
+		console.log('Heard Prefix Keyword');
 		interpret(params, member);
 	}
 }
@@ -188,8 +196,8 @@ function handleTTS(speech, member) {
  * @param {boolean} speaking
  */
 function handleAudio(member, speaking) {
-	// console.log(speaking + " hearing Sounds from " + member);
-	// console.log("Connected to " + discord.voiceConnections.array().length);
+	// console.log(speaking + ' hearing Sounds from ' + member);
+	// console.log('Connected to ' + discord.voiceConnections.array().length);
 	if (speaking || !member.voiceChannel) {// Interpret after they finish speaking
 		return;
 	}
@@ -204,7 +212,7 @@ function handleAudio(member, speaking) {
 		}
 
 		let basename = Path.basename(stream.path, '.opus_string');
-		let text = "default";
+		let text = 'default';
 
 		// decode file into pcm
 		decode.convertOpusStringToRawPCM(stream.path,
@@ -229,19 +237,19 @@ function handleAudio(member, speaking) {
  * @param {Message} [message] 
  */
 function commandListen(params, member, message) {
-	console.log("Listening to " )
+	console.log('Listening to ' )
 	if (!member) {//TODO: remove? How can there not be a member?
 		return;
 	}
 	// choose the n'th voice channel
 	const channelNumber = parseInt(params[params.length-1]);// The final word interpreted as an integer
-	if ((params[0] === "to" || params [0] === "channel") && channelNumber !== NaN){
-		vars.voiceChannel = discord.channels.filter((channel)=>{
-			return channel.type === "voice";
+	if ((params[0] === 'to' || params [0] === 'channel') && channelNumber !== NaN){
+		vars.voiceChannel = client.channels.filter((channel)=>{
+			return channel.type === 'voice';
 		}).array[channelNumber-1];//converting human index to computer index
 	} else {
 		if (!member.voiceChannel && message) {
-			message.reply(" you need to be in a voice channel first.");
+			message.reply(' you need to be in a voice channel first.');
 			return;
 		}
 		if (vars.voiceChannel === member.voiceChannel && message) {
@@ -256,8 +264,12 @@ function commandListen(params, member, message) {
 	vars.voiceChannel.join().then((connection) => {
 		//listenConnection.set(member.voiceChannelId, connection);
 		// vars.listenConnection = connection;
-		const stream = ytdl('https://www.youtube.com/watch?v=XAWgeLF9EVQ', { filter : 'audioonly' });
-		connection.playStream(stream, {volume: 0});
+		const stream = ytdl('https://www.youtube.com/watch?v=O51uFhJGf5s', { filter : 'audioonly' });
+		// new Promise(()=>{
+		connection.playStream(stream, {volume: 1});
+		// }).then(()=>{
+		// 	connection.end();
+		// });
 
 		let receiver = connection.createReceiver();
 		receiver.on('opus', (user, buffer) => {
@@ -278,14 +290,14 @@ function commandListen(params, member, message) {
 	}).catch(console.error);
 
 	
-	console.log("CommandListen: Connected to " + discord.voiceConnections.array().length);
+	console.log('CommandListen: Connected to ' + client.voiceConnections.array().length);
 }
 
 /**
  * Leaves the Voice Channel and closes all functionality.
  */
 function disconnect() {
-	console.log("Disconnecting");
+	console.log('Disconnecting');
 	if (vars.soundDispatcher) {
 		vars.soundDispatcher.end();
 	}
@@ -341,7 +353,7 @@ function processRawToWav(filepath, outputpath, cb) {
 
 			// check in the promise for the completion of call to witai
 			parseSpeech.then((data) => {
-				// console.log("you said: " + data._text);
+				// console.log('you said: ' + data._text);
 				cb(data);
 				//return data;
 			})

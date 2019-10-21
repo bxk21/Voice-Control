@@ -1,14 +1,14 @@
-const ytdl = require("ytdl-core");
-const getYoutubeID = require("get-youtube-id");
-const fetchVideoInfo = require("youtube-info");
+const ytdl = require('ytdl-core');
+const getYoutubeID = require('get-youtube-id');
+const fetchVideoInfo = require('youtube-info');
 
 var songQueue = [];
 var isPlaying = false;
 var vars = null;
 var YT_API_KEY = null;
 
-function attach(vars, config){
-    vars = vars;
+function attach(mainVars, config){
+    vars = mainVars;
     YT_API_KEY = config.yt_api_key;
 }
 
@@ -18,15 +18,15 @@ function close() {
 }
 
 function interpret(params, member){
-    if (params[0] === "music") {
-        switch (params[1]) {
+    // if (params[0] === 'music') {
+        switch (params[0]) {
             case 'play':
             case 'queue':
             case 'q'://TODO check if needed
-                play(member, params.slice(2));
+                play(member, params.slice(1));
                 return true;
             case 'playlist':
-                playlist(member, params.slice(2));
+                playlist(member, params.slice(1));
                 return true;
             case 'skip':
             case 'next':
@@ -39,34 +39,34 @@ function interpret(params, member){
                 resume();
                 return true;
             case 'volume':
-                volume(params.slice(2));
+                volume(params.slice(1));
                 return true;
             case 'reset':
             case 'clear':
                 clearQueue();
                 return true;
             case 'repeat':
-                repeat(member, params.slice(2));
+                repeat(member, params.slice(1));
                 return true;
             }
-        }
+        // }
     return false;
 }
 
 
-function play(member, msg) {
+function play(member, params) {
 	if (!member.voiceChannel) {
 		return;
 	}
 	if (!vars.voiceChannel) {
 		vars.voiceChannel = member.voiceChannel;
 	}
-	var args = msg.toLowerCase().split(' ').slice(1).join(" ");
-	args = args.trim();
-	if (args.length != 0) playRequest(args);
+	if (params.length != 0) {
+		playRequest(params);
+	}
 }
 
-function playlist(member, msg) {
+function playlist(member, params) {
 	if (!member.voiceChannel) {
 		return;
 	}
@@ -74,25 +74,24 @@ function playlist(member, msg) {
 		vars.voiceChannel = member.voiceChannel;
 	}
 
-	var args = msg;
-	if (args.indexOf(prefix) == 0) {
-		args = args.slice(1);
+	if (params.indexOf(prefix) == 0) {
+		params = params.slice(1);
 	}
-	args = args.toLowerCase().split(' ');
-	if (args[0] === 'play' && args[1] === 'list') {
-		args = args.slice(2).join(" ");
+	params = params.toLowerCase().split(' ');
+	if (params[0] === 'play' && params[1] === 'list') {
+		params = params.slice(2).join(' ');
 	} else {
-		args = args.slice(1).join(" ");
+		params = params.slice(1).join(' ');
 	}
 
-	args = args.trim();
-	if (args.length !== 0) playlistRequest(args);
+	params = params.trim();
+	if (params.length !== 0) playlistRequest(params);
 }
 
 function skip() {
 	if (songQueue.length > 0) {
 		skipSong();
-		textChannel.send("Skipping current song!");
+		textChannel.send('Skipping current song!');
 	}
 }
 
@@ -108,9 +107,8 @@ function resume() {
 	}
 }
 
-function volume(msg) {
-	var args = msg.toLowerCase().split(' ').slice(1).join(" ");
-	var vol = parseInt(args);
+function volume(params) {
+	var vol = parseInt(params);
 	if (!isNaN(vol)
 		&& vol <= 100
 		&& vol >= 0) {
@@ -124,20 +122,19 @@ function clearQueue() {
 		if (vars.soundDispatcher) {
 			vars.soundDispatcher.end();
 		}
-		textChannel.send("The queue has been cleared.");
+		textChannel.send('The queue has been cleared.');
 	}
 }
 
-function repeat(member, msg) {
+function repeat(member, params) {
 	if (!member.voiceChannel) {
-		textChannel.send(" you need to be in a voice channel first.")
+		textChannel.send(' you need to be in a voice channel first.')
 		return;
 	}
 
-	msg = msg.toLowerCase().split(' ').slice(1).join(" ");
 	vars.voiceChannel = member.voiceChannel;
 	vars.voiceChannel.join().then((connection) => {
-		textChannel.send(msg, {
+		textChannel.send(params, {
 			tts: true
 		});
 	});
@@ -150,26 +147,26 @@ function skipSong() {
 	}
 }
 
-function playRequest(args) {
+function playRequest(params) {
 	if (songQueue.length > 0 || isPlaying) {
-		getID(args, function (id) {
+		getID(params, function (id) {
 			if (id === null) {
-				vars.textChannel.send("Sorry, no search results turned up");
+				vars.textChannel.send('Sorry, no search results turned up');
 			} else {
 				add_to_queue(id);
 				fetchVideoInfo(id, function (err, videoInfo) {
 					if (err) throw new Error(err);
-					vars.textChannel.send("Added to queue **" + videoInfo.title + "**");
+					vars.textChannel.send('Added to queue **' + videoInfo.title + '**');
 				});
 			}
 		});
 	} else {
-		getID(args, function (id) {
+		getID(params, function (id) {
 			if (id === null) {
-				vars.textChannel.send("Sorry, no search results turned up");
+				vars.textChannel.send('Sorry, no search results turned up');
 			} else {
 				isPlaying = true;
-				songQueue.push("placeholder");
+				songQueue.push('placeholder');
 				playMusic(id);
 
 			}
@@ -177,13 +174,13 @@ function playRequest(args) {
 	}
 }
 
-function playlistRequest(args) {
+function playlistRequest(params) {
 	if (songQueue.length > 0 || isPlaying) {
-		search_playlist(args, function (body) {
+		search_playlist(params, function (body) {
 			if (!body) {
-				vars.textChannel.send("Sorry, no search results turned up");
+				vars.textChannel.send('Sorry, no search results turned up');
 			} else {
-				vars.textChannel.send("Playlist for '**" + args + "**' added to queue");
+				vars.textChannel.send('Playlist for '**' + params + '**' added to queue');
 				json = JSON.parse(body);
 				isPlaying = true;
 				items = shuffle(json.items);
@@ -193,14 +190,14 @@ function playlistRequest(args) {
 			}
 		});
 	} else {
-		search_playlist(args, function (body) {
+		search_playlist(params, function (body) {
 			if (!body) {
-				vars.textChannel.send("Sorry, no search results turned up");
+				vars.textChannel.send('Sorry, no search results turned up');
 			} else {
 				json = JSON.parse(body);
 				isPlaying = true;
 				items = shuffle(json.items);
-				songQueue.push("placeholder");
+				songQueue.push('placeholder');
 				items.slice(1).forEach((item) => {
 					add_to_queue(item.id.videoId);
 				});
@@ -213,8 +210,8 @@ function playlistRequest(args) {
 function playMusic(id) {
 	//voiceChannel = message.member.voiceChannel;
 	vars.voiceChannel.join().then((connection) => {
-		console.log("playing");
-		stream = ytdl("https://www.youtube.com/watch?v=" + id, {
+		console.log('playing');
+		stream = ytdl('https://www.youtube.com/watch?v=' + id, {
 			filter: 'audioonly'
 		});
 		vars.skipReq = 0;
@@ -222,12 +219,12 @@ function playMusic(id) {
 		vars.soundDispatcher = connection.playStream(stream);
 		fetchVideoInfo(id, (err, videoInfo) => {
 			if (err) throw new Error(err);
-			vars.textChannel.send("Now playing **" + videoInfo.title + "**");
+			vars.textChannel.send('Now playing **' + videoInfo.title + '**');
 		});
 		vars.soundDispatcher.on('end', () => {
 			vars.soundDispatcher = null;
 			songQueue.shift();
-			console.log("queue size: " + songQueue.length);
+			console.log('queue size: ' + songQueue.length);
 			if (songQueue.length === 0) {
 				songQueue = [];
 				isPlaying = false;
@@ -260,7 +257,7 @@ function shuffle(array) {
 }
 
 function isYoutube(str) {
-	return str.toLowerCase().indexOf("youtube.com") > -1;
+	return str.toLowerCase().indexOf('youtube.com') > -1;
 }
 
 function getID(str, cb) {
@@ -282,7 +279,7 @@ function add_to_queue(strID) {
 }
 
 function search_video(query, callback) {
-	request("https://www.googleapis.com/youtube/v3/search?part=id&type=video&q=" + encodeURIComponent(query) + "&key=" + YT_API_KEY, function (error, response, body) {
+	request('https://www.googleapis.com/youtube/v3/search?part=id&type=video&q=' + encodeURIComponent(query) + '&key=' + YT_API_KEY, function (error, response, body) {
 		var json = JSON.parse(body);
 
 		if (json.items[0] === null) {
@@ -295,7 +292,7 @@ function search_video(query, callback) {
 
 function search_playlist(query, callback) {
 	var maxResults = 40
-	request("https://www.googleapis.com/youtube/v3/search?part=id&type=video&q=" + encodeURIComponent(query) + "&key=" + YT_API_KEY + "&maxResults=" + 40, function (error, response, body) {
+	request('https://www.googleapis.com/youtube/v3/search?part=id&type=video&q=' + encodeURIComponent(query) + '&key=' + YT_API_KEY + '&maxResults=' + 40, function (error, response, body) {
 		var json = JSON.parse(body);
 
 		if (json.items[0] === null) {

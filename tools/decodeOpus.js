@@ -56,7 +56,7 @@ let convertOpusStringToRawPCM = (inputPath, filename, cb) => {
 			// console.log(`Completed ${100 * complete / total}%`);
 		});
 	});
-	// console.log("not yet translating");
+	// console.log('not yet translating');
 	cb();
 };
 

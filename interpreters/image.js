@@ -1,10 +1,10 @@
-const request = require("request");
+const request = require('request');
 
 var vars = null;
 var IMGUR_API_KEY = null;
 
-function attach(vars, config){
-    vars = vars;
+function attach(mainVars, config){
+    vars = mainVars;
     IMGUR_API_KEY = config.imgur_api_key;
 }
 
@@ -28,7 +28,7 @@ function image(params) {
 	if (params.includes('gif') || params.includes('jif')) {//TODO: jif?
 		ext = '+ext:gif';
 	}
-	console.log("searching for image!");
+	console.log('searching for image!');
 	const options = {
 		url: 'https://api.imgur.com/3/gallery/search/top/week/0/?q=' + params + ext,
 		headers: {
@@ -39,7 +39,7 @@ function image(params) {
 
 		let json = JSON.parse(body);
 		if (!body || json.data.length < 1) {
-			vars.textChannel.send("No results were found!");
+			vars.textChannel.send('No results were found!');
 			return;
 		}
 		let item = getRandomItem(json.data);
