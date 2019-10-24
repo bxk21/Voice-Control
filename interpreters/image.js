@@ -1,4 +1,5 @@
 const request = require('request');
+const Discord = require('discord.js');
 
 var vars = null;
 var IMGUR_API_KEY = null;

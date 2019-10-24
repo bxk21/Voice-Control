@@ -13,6 +13,7 @@ function close() {
 function interpret(params, member) {
 	switch (params[0]) {
 		case 'roll':
+		case 'role':
 			interpretRoll(params.slice(1), member)
 			return true;
 		default:
@@ -31,6 +32,9 @@ function interpretRoll(params, member) {
 	//Convert text to numbers and symbols
 	params.forEach((param, index) => {
 		switch (param) {
+			case 'percent':
+			case 'percentile':
+				params.splice(index, 2, 'D', '100');
 			case 'D':
 			case 'd': {
 				params[index] = 'D';
@@ -129,7 +133,7 @@ function interpretRoll(params, member) {
 
 	var text = params.reduce((total, current, index) => {
 		if (typeof current === 'number') {
-			if (total){
+			if (total) {
 				return total.concat(' + ' + current);
 			} else {
 				return current;
